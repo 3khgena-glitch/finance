@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="amount ${t.type === 'Отримання' ? 'income' : 'expense'}">
                         ${t.amount.toLocaleString("uk-UA")} ₴
                     </span>
-                    <button class="delete-btn" onclick="deleteItem(${t.id})">✕</button>
+                    <button class="delete-btn" onclick="deleteItem('${t.id}')">✕</button>
                 </li>
             `;
             if (index < 5) ui.recentList.insertAdjacentHTML("beforeend", html);
@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!amount || amount <= 0) return;
 
         transactions.push({
-            id: Date.now(),
+            id: Date.now().toString(),
             date: ui.inputDate.value,
             type: ui.inputTypeIncome.checked ? 'Отримання' : 'Видача',
             comment: ui.inputComment.value.trim(),
@@ -104,24 +104,40 @@ document.addEventListener("DOMContentLoaded", () => {
             
             lines.forEach(line => {
                 if (!line.trim()) return;
-                const sep = line.includes(";") ? ";" : ",";
-                const cols = line.split(sep).map(c => c.replace(/"/g, '').trim());
+                
+                // Перевіряємо роздільник
+                let cols = line.split(";");
+                if (cols.length < 3) {
+                    cols = line.split(",");
+                }
+                cols = cols.map(c => c.replace(/"/g, '').trim());
+                
                 if (cols.length < 3) return;
 
-                let dParts = cols[0].split(" ")[0].split("-");
+                // Парсинг дати (витягуємо саму дату без часу 00:00:00)
+                let dateStr = cols[0].split(" ")[0];
+                let dParts = dateStr.includes(".") ? dateStr.split(".") : dateStr.split("-");
                 if (dParts.length !== 3) return;
                 
-                let rawAmount = parseFloat(cols[2].replace(',', '.'));
+                // Зводимо дату до формату YYYY-MM-DD для правильного сортування
+                let isoDate = dateStr;
+                if (dateStr.includes(".")) {
+                    isoDate = `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+                } else if (dParts[0].length === 2) {
+                    isoDate = `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+                }
+                
+                let rawAmount = parseFloat(cols[2].replace(',', '.').replace(/\s/g, ''));
                 if (isNaN(rawAmount) || rawAmount === 0) return;
 
                 let isIncome = cols[1].toLowerCase().includes("отримано");
                 
                 transactions.push({
-                    id: Date.now() + Math.random(),
-                    date: `${dParts[0]}-${dParts[1]}-${dParts[2]}`,
+                    id: Date.now().toString() + Math.random().toString(),
+                    date: isoDate,
                     type: isIncome ? 'Отримання' : 'Видача',
                     amount: Math.abs(rawAmount),
-                    comment: cols[3] || 'Імпорт'
+                    comment: cols[3] ? cols[3].replace(';', '') : 'Імпорт'
                 });
                 imported++;
             });
@@ -129,6 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
             saveState();
             alert(`Імпортовано ${imported} записів!`);
             e.target.value = "";
+            document.querySelector('[data-target="dashboard"]').click();
         };
         reader.readAsText(file);
     });
